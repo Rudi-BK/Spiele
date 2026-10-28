@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- Apple Web-App Meta-Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FreeCell">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1b5e20">
+
+    <!-- Web-App Manifest & Icon -->
+    <link rel="manifest" href='data:application/manifest+json,{"name":"FreeCell Solitaire","short_name":"FreeCell","start_url":".","display":"standalone","background_color":"#1b5e20","theme_color":"#1b5e20"}'>
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231b5e20'/><text x='50%' y='65%' font-size='60' text-anchor='middle' fill='white'>♠</text></svg>">
+
+    <title>FreeCell Solitaire</title>
+    <style>
+        :root {
+            --bg-color: #1b5e20;
+            --card-width: 85px;
+            --card-height: 120px;
+            --border-radius: 8px;
+            --slot-border: rgba(255, 255, 255, 0.3);
+            --text-color: #ffffff;
+            --accent-color: #a5d6a7;
+            --btn-bg: #ffffff;
+            --btn-hover: #e0e0e0;
+            --btn-text: #1b5e20;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 15px;
+            padding-top: max(15px, env(safe-area-inset-top));
+            padding-bottom: max(15px, env(safe-area-inset-bottom));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 { 
+            margin-top: 0; 
+            margin-bottom: 5px; 
+            font-size: 22px; 
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        }
+
+        .status { 
+            margin-bottom: 12px; 
+            font-weight: 600; 
+            font-size: 13px; 
+            color: var(--accent-color); 
+            min-height: 18px; 
+            text-align: center; 
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        button, select {
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: bold;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+            -webkit-appearance: none;
+        }
+
+        button:hover, select:hover { 
+            background-color: var(--btn-hover); 
+            transform: translateY(-1px); 
+        }
+
+        .game-board {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .top-row { display: flex; justify-content: space-between; width: 100%; }
+        .zone { display: flex; gap: 8px; }
+
+        .slot {
+            width: var(--card-width);
+            height: var(--card-height);
+            border: 2px dashed var(--slot-border);
+            border-radius: var(--border-radius);
+            box-sizing: border-box;
+            position: relative;
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .tableau { display: flex; justify-content: space-between; width: 100%; min-height: 450px; }
+        .column { width: var(--card-width); min-height: var(--card-height); position: relative; }
+
+        .card {
+            width: var(--card-width);
+            height: var(--card-height);
+            background: #ffffff;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: outline 0.2s, transform 0.2s;
+        }
+
+        .card.red { color: #d32f2f; }
+        .card.black { color: #212121; }
+        .card .suit { font-size: 20px; }
+        .card .bottom { transform: rotate(180deg); }
+
+        .card.selected {
+            outline: 3px solid #ffeb3b !important;
+            box-shadow: 0 0 12px #ffeb3b !important;
+        }
+
+        .card.hint-source {
+            outline: 3px solid #00e676 !important;
+            box-shadow: 0 0 12px #00e676 !important;
+            animation: pulse 1s infinite alternate;
+        }
+
+        .slot.hint-target, .column.hint-target {
+            outline: 3px dashed #00e676 !important;
+            border-radius: var(--border-radius);
+            background: rgba(0, 230, 118, 0.2);
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.03); }
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            background: #2e7d32;
+            border: 2px solid #81c784;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 320px;
+            width: 90%;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal h2 { margin-top: 0; color: #ffffff; }
+        .modal p { color: #c8e6c9; margin-bottom: 20px; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: center; }
+    </style>
+</head>
+<body>
+
+    <h1>FreeCell Solitaire</h1>
+    <div class="status" id="status-text">Spiel bereit!</div>
+
+    <div class="controls">
+        <select id="difficulty" onchange="initGame()">
+            <option value="easy" selected>Einfach (Auto-Ablage & Tipp)</option>
+            <option value="medium">Mittel (Standard)</option>
+            <option value="hard">Schwer (Manuell)</option>
+        </select>
+        <button onclick="initGame()">Neues Spiel</button>
+        <button onclick="getSmartHint()">🧠 Tipp</button>
+        <button onclick="undoMove()">↩️ Rückgängig</button>
+    </div>
+
+    <div class="game-board">
+        <div class="top-row">
+            <div class="zone" id="free-cells">
+                <div class="slot" data-type="freecell" data-index="0"></div>
+                <div class="slot" data-type="freecell" data-index="1"></div>
+                <div class="slot" data-type="freecell" data-index="2"></div>
+                <div class="slot" data-type="freecell" data-index="3"></div>
+            </div>
+            <div class="zone" id="foundations">
+                <div class="slot" data-type="foundation" data-index="0"></div>
+                <div class="slot" data-type="foundation" data-index="1"></div>
+                <div class="slot" data-type="foundation" data-index="2"></div>
+                <div class="slot" data-type="foundation" data-index="3"></div>
+            </div>
+        </div>
+
+        <div class="tableau" id="tableau">
+            <div class="column" data-type="tableau" data-index="0"></div>
+            <div class="column" data-type="tableau" data-index="1"></div>
+            <div class="column" data-type="tableau" data-index="2"></div>
+            <div class="column" data-type="tableau" data-index="3"></div>
+            <div class="column" data-type="tableau" data-index="4"></div>
+            <div class="column" data-type="tableau" data-index="5"></div>
+            <div class="column" data-type="tableau" data-index="6"></div>
+            <div class="column" data-type="tableau" data-index="7"></div>
+        </div>
+    </div>
+
+    <!-- Game Over Overlay -->
+    <div class="overlay" id="game-over-modal">
+        <div class="modal">
+            <h2>Sackgasse / Spielende! 🛑</h2>
+            <p>Es existieren keine gewinnbringenden Züge mehr in dieser Position.</p>
+            <div class="modal-buttons">
+                <button onclick="undoMove(); hideGameOver();">↩️ Rückgängig</button>
+                <button onclick="initGame(); hideGameOver();">Neues Spiel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUITS = ['♠', '♥', '♦', '♣'];
+        const VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+        const VALUE_NAMES = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+
+        let gameState = {
+            freeCells: [null, null, null, null],
+            foundations: [[], [], [], []],
+            tableau: [[], [], [], [], [], [], [], []]
+        };
+
+        let history = [];
+        let visitedStateHashes = new Set();
+        let recentMoves = [];
+        let selection = null;
+        let activeHint = null;
+
+        function createDeck() {
+            let deck = [];
+            for (let suit of SUITS) {
+                for (let val of VALUES) {
+                    deck.push({ suit, value: val, color: (suit === '♥' || suit === '♦') ? 'red' : 'black' });
+                }
+            }
+            return shuffle(deck);
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function getGameStateHash(state = gameState) {
+            const fc = state.freeCells.map(c => c ? `${c.value}${c.suit}` : '_').sort().join(',');
+            const fd = state.foundations.map(s => s.length > 0 ? `${s[s.length-1].value}${s[s.length-1].suit}` : '_').join(',');
+            const tb = state.tableau.map(col => col.map(c => `${c.value}${c.suit}`).join('-')).join('|');
+            return `${fc};${fd};${tb}`;
+        }
+
+        function saveState() { 
+            history.push(JSON.stringify(gameState)); 
+            visitedStateHashes.add(getGameStateHash(gameState));
+        }
+
+        function undoMove() {
+            if (history.length === 0) return alert("Kein Zug zum Rückgängigmachen!");
+            gameState = JSON.parse(history.pop());
+            recentMoves.pop();
+            selection = null;
+            activeHint = null;
+            render();
+            checkGameOver();
+        }
+
+        function getMaxMovableCards(state = gameState, targetIsTableauEmpty = false) {
+            const freeCellsCount = state.freeCells.filter(c => c === null).length;
+            let freeColsCount = state.tableau.filter(col => col.length === 0).length;
+            if (targetIsTableauEmpty) freeColsCount--;
+            return (1 + freeCellsCount) * Math.pow(2, Math.max(0, freeColsCount));
+        }
+
+        function isValidSequence(cards) {
+            for (let i = 0; i < cards.length - 1; i++) {
+                if (cards[i].color === cards[i + 1].color || cards[i].value !== cards[i + 1].value + 1) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function initGame() {
+            const deck = createDeck();
+            gameState = {
+                freeCells: [null, null, null, null],
+                foundations: [[], [], [], []],
+                tableau: [[], [], [], [], [], [], [], []]
+            };
+
+            for (let i = 0; i < deck.length; i++) {
+                gameState.tableau[i % 8].push(deck[i]);
+            }
+
+            history = [];
+            recentMoves = [];
+            visitedStateHashes = new Set();
+            visitedStateHashes.add(getGameStateHash(gameState));
+
+            selection = null;
+            activeHint = null;
+
+            const diff = document.getElementById('difficulty').value;
+            document.getElementById('status-text').innerText = `Spiele im Modus ${diff.toUpperCase()}`;
+
+            if (diff === 'easy') autoMoveToFoundation();
+            render();
+            hideGameOver();
+        }
+
+        function render() {
+            document.querySelectorAll('.hint-target').forEach(el => el.classList.remove('hint-target'));
+
+            // Free Cells
+            document.querySelectorAll('#free-cells .slot').forEach((slot, idx) => {
+                slot.innerHTML = '';
+                const card = gameState.freeCells[idx];
+                if (card) slot.appendChild(createCardElement(card, 'freecell', idx));
+                if (activeHint && activeHint.target.location === 'freecell' && activeHint.target.index === idx) {
+                    slot.classList.add('hint-target');
+                }
+            });
+
+            // Foundations
+            document.querySelectorAll('#foundations .slot').forEach((slot, idx) => {
+                slot.innerHTML = '';
+                const stack = gameState.foundations[idx];
+                if (stack.length > 0) slot.appendChild(createCardElement(stack[stack.length - 1], 'foundation', idx));
+                if (activeHint && activeHint.target.location === 'foundation' && activeHint.target.index === idx) {
+                    slot.classList.add('hint-target');
+                }
+            });
+
+            // Tableau
+            document.querySelectorAll('#tableau .column').forEach((col, colIdx) => {
+                col.innerHTML = '';
+                const stack = gameState.tableau[colIdx];
+                stack.forEach((card, cardIdx) => {
+                    const cardEl = createCardElement(card, 'tableau', colIdx, cardIdx);
+                    cardEl.style.top = `${cardIdx * 25}px`;
+                    col.appendChild(cardEl);
+                });
+                if (activeHint && activeHint.target.location === 'tableau' && activeHint.target.index === colIdx) {
+                    col.classList.add('hint-target');
+                }
+            });
+
+            checkWin();
+        }
+
+        function createCardElement(card, location, index1, index2 = null) {
+            const el = document.createElement('div');
+            el.className = `card ${card.color}`;
+            const displayValue = VALUE_NAMES[card.value] || card.value;
+            el.innerHTML = `<div>${displayValue} <span class="suit">${card.suit}</span></div><div class="bottom">${displayValue} <span class="suit">${card.suit}</span></div>`;
+
+            if (selection && selection.card === card) el.classList.add('selected');
+            if (activeHint && activeHint.sourceCard === card) el.classList.add('hint-source');
+
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleCardClick(card, location, index1, index2);
+            });
+            return el;
+        }
+
+        function handleCardClick(card, location, index1, index2) {
+            activeHint = null;
+
+            if (!selection) {
+                if (location === 'freecell') {
+                    selection = { location, colIndex: index1, cardIndex: null, card, cards: [card] };
+                } else if (location === 'tableau') {
+                    const stack = gameState.tableau[index1];
+                    const selectedSequence = stack.slice(index2);
+
+                    if (isValidSequence(selectedSequence)) {
+                        const isTargetEmpty = false;
+                        if (selectedSequence.length <= getMaxMovableCards(gameState, isTargetEmpty)) {
+                            selection = { location, colIndex: index1, cardIndex: index2, card, cards: selectedSequence };
+                        } else {
+                            document.getElementById('status-text').innerText = `❌ Max. ${getMaxMovableCards(gameState)} Karten gleichzeitig!`;
+                            return;
+                        }
+                    } else {
+                        return;
+                    }
+                }
+                render();
+                return;
+            }
+
+            if (selection.card === card) {
+                selection = null;
+                render();
+                return;
+            }
+
+            tryMove(selection, { location, index1 });
+        }
+
+        function attachSlotClickListeners() {
+            document.querySelectorAll('.slot, .column').forEach(el => {
+                el.addEventListener('click', () => {
+                    if (!selection) return;
+                    tryMove(selection, { location: el.dataset.type, index1: parseInt(el.dataset.index) });
+                });
+            });
+        }
+
+        function tryMove(source, target) {
+            const movingCards = source.cards;
+            const topCard = movingCards[0];
+            let success = false;
+
+            if (target.location === 'freecell' && movingCards.length === 1 && gameState.freeCells[target.index1] === null) {
+                saveState();
+                gameState.freeCells[target.index1] = topCard;
+                removeSource(source);
+                recentMoves.push({ card: `${topCard.value}${topCard.suit}`, from: `tableau_${source.colIndex}`, to: `freecell_${target.index1}` });
+                success = true;
+            }
+            else if (target.location === 'foundation' && movingCards.length === 1) {
+                const stack = gameState.foundations[target.index1];
+                if ((stack.length === 0 && topCard.value === 1) || 
+                    (stack.length > 0 && stack[stack.length - 1].suit === topCard.suit && topCard.value === stack[stack.length - 1].value + 1)) {
+                    saveState();
+                    stack.push(topCard);
+                    removeSource(source);
+                    recentMoves.push({ card: `${topCard.value}${topCard.suit}`, from: `${source.location}_${source.colIndex}`, to: `foundation_${target.index1}` });
+                    success = true;
+                }
+            }
+            else if (target.location === 'tableau') {
+                const stack = gameState.tableau[target.index1];
+                const isEmpty = stack.length === 0;
+
+                if (movingCards.length <= getMaxMovableCards(gameState, isEmpty)) {
+                    if (isEmpty || (stack[stack.length - 1].color !== topCard.color && topCard.value === stack[stack.length - 1].value - 1)) {
+                        saveState();
+                        stack.push(...movingCards);
+                        removeSource(source);
+                        recentMoves.push({ card: `${topCard.value}${topCard.suit}`, from: `${source.location}_${source.colIndex}`, to: `tableau_${target.index1}` });
+                        success = true;
+                    }
+                } else {
+                    document.getElementById('status-text').innerText = `❌ Zu wenig freie Plätze!`;
+                }
+            }
+
+            selection = null;
+            if (success && document.getElementById('difficulty').value === 'easy') {
+                autoMoveToFoundation();
+            }
+            render();
+            checkGameOver();
+        }
+
+        function removeSource(source) {
+            if (source.location === 'freecell') {
+                gameState.freeCells[source.colIndex] = null;
+            } else if (source.location === 'tableau') {
+                gameState.tableau[source.colIndex].splice(source.cardIndex);
+            }
+        }
+
+        function autoMoveToFoundation() {
+            let moved = false;
+            for (let f = 0; f < 4; f++) {
+                const fStack = gameState.foundations[f];
+                const neededVal = fStack.length === 0 ? 1 : fStack[fStack.length - 1].value + 1;
+
+                for (let i = 0; i < 4; i++) {
+                    const card = gameState.freeCells[i];
+                    if (card && card.value === neededVal && (fStack.length === 0 || card.suit === fStack[0].suit)) {
+                        fStack.push(card);
+                        gameState.freeCells[i] = null;
+                        moved = true;
+                    }
+                }
+                for (let i = 0; i < 8; i++) {
+                    const stack = gameState.tableau[i];
+                    if (stack.length > 0) {
+                        const card = stack[stack.length - 1];
+                        if (card.value === neededVal && (fStack.length === 0 || card.suit === fStack[0].suit)) {
+                            fStack.push(card);
+                            stack.pop();
+                            moved = true;
+                        }
+                    }
+                }
+            }
+            if (moved) autoMoveToFoundation();
+        }
+
+        function simulateMoveState(currentState, source, target) {
+            const clone = JSON.parse(JSON.stringify(currentState));
+            const movingCards = source.cards;
+            const topCard = movingCards[0];
+
+            if (source.location === 'freecell') clone.freeCells[source.colIndex] = null;
+            else if (source.location === 'tableau') clone.tableau[source.colIndex].splice(source.cardIndex);
+
+            if (target.location === 'freecell') clone.freeCells[target.index] = topCard;
+            else if (target.location === 'foundation') clone.foundations[target.index].push(topCard);
+            else if (target.location === 'tableau') clone.tableau[target.index].push(...movingCards);
+
+            return clone;
+        }
+
+        function isDirectOscillation(cardStr, fromStr, toStr) {
+            const last = recentMoves[recentMoves.length - 1];
+            if (!last) return false;
+            return last.card === cardStr && last.from === toStr && last.to === fromStr;
+        }
+
+        // Hilfsfunktion: Gibt alle theoretisch möglichen Unterzüge für einen beliebigen Zustand zurück
+        function getRawMovesForState(state) {
+            const rawMoves = [];
+
+            // 1. Foundation
+            for (let t = 0; t < 8; t++) {
+                const stack = state.tableau[t];
+                if (stack.length === 0) continue;
+                const card = stack[stack.length - 1];
+                for (let f = 0; f < 4; f++) {
+                    const fStack = state.foundations[f];
+                    if ((fStack.length === 0 && card.value === 1) || 
+                        (fStack.length > 0 && fStack[fStack.length - 1].suit === card.suit && card.value === fStack[fStack.length - 1].value + 1)) {
+                        rawMoves.push({ source: { location: 'tableau', colIndex: t, cardIndex: stack.length - 1, cards: [card] }, target: { location: 'foundation', index: f }, card });
+                    }
+                }
+            }
+            for (let fc = 0; fc < 4; fc++) {
+                const card = state.freeCells[fc];
+                if (!card) continue;
+                for (let f = 0; f < 4; f++) {
+                    const fStack = state.foundations[f];
+                    if ((fStack.length === 0 && card.value === 1) || 
+                        (fStack.length > 0 && fStack[fStack.length - 1].suit === card.suit && card.value === fStack[fStack.length - 1].value + 1)) {
+                        rawMoves.push({ source: { location: 'freecell', colIndex: fc, cardIndex: null, cards: [card] }, target: { location: 'foundation', index: f }, card });
+                    }
+                }
+            }
+
+            // 2. Tableau
+            for (let from = 0; from < 8; from++) {
+                const fromStack = state.tableau[from];
+                if (fromStack.length === 0) continue;
+                for (let cardIdx = 0; cardIdx < fromStack.length; cardIdx++) {
+                    const seq = fromStack.slice(cardIdx);
+                    if (!isValidSequence(seq)) continue;
+                    const topSeqCard = seq[0];
+                    for (let to = 0; to < 8; to++) {
+                        if (from === to) continue;
+                        const toStack = state.tableau[to];
+                        const isEmpty = toStack.length === 0;
+                        if (seq.length <= getMaxMovableCards(state, isEmpty)) {
+                            if (isEmpty || (toStack[toStack.length - 1].color !== topSeqCard.color && topSeqCard.value === toStack[toStack.length - 1].value - 1)) {
+                                if (cardIdx === 0 && isEmpty) continue;
+                                rawMoves.push({ source: { location: 'tableau', colIndex: from, cardIndex: cardIdx, cards: seq }, target: { location: 'tableau', index: to }, card: topSeqCard });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. FreeCell -> Tableau
+            for (let fc = 0; fc < 4; fc++) {
+                const card = state.freeCells[fc];
+                if (!card) continue;
+                for (let to = 0; to < 8; to++) {
+                    const toStack = state.tableau[to];
+                    const isEmpty = toStack.length === 0;
+                    if (isEmpty || (toStack[toStack.length - 1].color !== card.color && card.value === toStack[toStack.length - 1].value - 1)) {
+                        rawMoves.push({ source: { location: 'freecell', colIndex: fc, cardIndex: null, cards: [card] }, target: { location: 'tableau', index: to }, card });
+                    }
+                }
+            }
+
+            // 4. Tableau -> FreeCell
+            const emptyFCIndex = state.freeCells.findIndex(c => c === null);
+            if (emptyFCIndex !== -1) {
+                for (let t = 0; t < 8; t++) {
+                    const stack = state.tableau[t];
+                    if (stack.length > 1) {
+                        const topCard = stack[stack.length - 1];
+                        const subCard = stack[stack.length - 2];
+                        if (subCard.value === 1 || subCard.value === 2) {
+                            rawMoves.push({ source: { location: 'tableau', colIndex: t, cardIndex: stack.length - 1, cards: [topCard] }, target: { location: 'freecell', index: emptyFCIndex }, card: topCard });
+                        }
+                    }
+                }
+            }
+
+            return rawMoves;
+        }
+
+        // Hauptsuchfunktion: Bewertet Züge und schließt Sackgassen im nächsten Schritt aus
+        function getAllValidNonCyclicMoves() {
+            const candidateMoves = [];
+
+            // 1. Foundation-Züge
+            for (let t = 0; t < 8; t++) {
+                const stack = gameState.tableau[t];
+                if (stack.length === 0) continue;
+                const card = stack[stack.length - 1];
+
+                for (let f = 0; f < 4; f++) {
+                    const fStack = gameState.foundations[f];
+                    if ((fStack.length === 0 && card.value === 1) || 
+                        (fStack.length > 0 && fStack[fStack.length - 1].suit === card.suit && card.value === fStack[fStack.length - 1].value + 1)) {
+                        
+                        const source = { location: 'tableau', colIndex: t, cardIndex: stack.length - 1, cards: [card] };
+                        const target = { location: 'foundation', index: f };
+                        candidateMoves.push({ prio: 1, sourceCard: card, source, target, desc: `Legen Sie ${VALUE_NAMES[card.value] || card.value}${card.suit} auf den Zielstapel!` });
+                    }
+                }
+            }
+
+            for (let fc = 0; fc < 4; fc++) {
+                const card = gameState.freeCells[fc];
+                if (!card) continue;
+
+                for (let f = 0; f < 4; f++) {
+                    const fStack = gameState.foundations[f];
+                    if ((fStack.length === 0 && card.value === 1) || 
+                        (fStack.length > 0 && fStack[fStack.length - 1].suit === card.suit && card.value === fStack[fStack.length - 1].value + 1)) {
+                        
+                        const source = { location: 'freecell', colIndex: fc, cardIndex: null, cards: [card] };
+                        const target = { location: 'foundation', index: f };
+                        candidateMoves.push({ prio: 1, sourceCard: card, source, target, desc: `Legen Sie ${VALUE_NAMES[card.value] || card.value}${card.suit} aus der FreeCell nach oben!` });
+                    }
+                }
+            }
+
+            // 2. Tableau -> Tableau
+            for (let from = 0; from < 8; from++) {
+                const fromStack = gameState.tableau[from];
+                if (fromStack.length === 0) continue;
+
+                for (let cardIdx = 0; cardIdx < fromStack.length; cardIdx++) {
+                    const seq = fromStack.slice(cardIdx);
+                    if (!isValidSequence(seq)) continue;
+                    const topSeqCard = seq[0];
+
+                    for (let to = 0; to < 8; to++) {
+                        if (from === to) continue;
+                        const toStack = gameState.tableau[to];
+                        const isEmpty = toStack.length === 0;
+
+                        if (seq.length <= getMaxMovableCards(gameState, isEmpty)) {
+                            if (isEmpty || (toStack[toStack.length - 1].color !== topSeqCard.color && topSeqCard.value === toStack[toStack.length - 1].value - 1)) {
+                                const source = { location: 'tableau', colIndex: from, cardIndex: cardIdx, cards: seq };
+                                const target = { location: 'tableau', index: to };
+                                const simState = simulateMoveState(gameState, source, target);
+                                const hash = getGameStateHash(simState);
+
+                                const cardStr = `${topSeqCard.value}${topSeqCard.suit}`;
+                                const fromStr = `tableau_${from}`;
+                                const toStr = `tableau_${to}`;
+
+                                if (!visitedStateHashes.has(hash) && !isDirectOscillation(cardStr, fromStr, toStr)) {
+                                    let prio = 4;
+                                    if (cardIdx === 0 && !isEmpty) prio = 2; 
+                                    if (cardIdx > 0 && (fromStack[cardIdx - 1].value === 1 || fromStack[cardIdx - 1].value === 2)) prio = 2; 
+
+                                    if (cardIdx === 0 && isEmpty) continue;
+
+                                    candidateMoves.push({ prio, sourceCard: topSeqCard, source, target, simState, desc: `Verschiebe Sequenz ab ${VALUE_NAMES[topSeqCard.value] || topSeqCard.value}${topSeqCard.suit}!` });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. FreeCell -> Tableau
+            for (let fc = 0; fc < 4; fc++) {
+                const card = gameState.freeCells[fc];
+                if (!card) continue;
+
+                for (let to = 0; to < 8; to++) {
+                    const toStack = gameState.tableau[to];
+                    const isEmpty = toStack.length === 0;
+
+                    if (isEmpty || (toStack[toStack.length - 1].color !== card.color && card.value === toStack[toStack.length - 1].value - 1)) {
+                        const source = { location: 'freecell', colIndex: fc, cardIndex: null, cards: [card] };
+                        const target = { location: 'tableau', index: to };
+                        const simState = simulateMoveState(gameState, source, target);
+                        const hash = getGameStateHash(simState);
+
+                        const cardStr = `${card.value}${card.suit}`;
+                        const fromStr = `freecell_${fc}`;
+                        const toStr = `tableau_${to}`;
+
+                        if (!visitedStateHashes.has(hash) && !isDirectOscillation(cardStr, fromStr, toStr)) {
+                            candidateMoves.push({ prio: 3, sourceCard: card, source, target, simState, desc: `Bringt ${VALUE_NAMES[card.value] || card.value}${card.suit} zurück aufs Spielfeld!` });
+                        }
+                    }
+                }
+            }
+
+            // 4. Tableau -> FreeCell
+            const emptyFCIndex = gameState.freeCells.findIndex(c => c === null);
+            if (emptyFCIndex !== -1) {
+                for (let t = 0; t < 8; t++) {
+                    const stack = gameState.tableau[t];
+                    if (stack.length > 1) {
+                        const topCard = stack[stack.length - 1];
+                        const subCard = stack[stack.length - 2];
+
+                        if (subCard.value === 1 || subCard.value === 2) {
+                            const source = { location: 'tableau', colIndex: t, cardIndex: stack.length - 1, cards: [topCard] };
+                            const target = { location: 'freecell', index: emptyFCIndex };
+                            const simState = simulateMoveState(gameState, source, target);
+                            const hash = getGameStateHash(simState);
+
+                            const cardStr = `${topCard.value}${topCard.suit}`;
+                            const fromStr = `tableau_${t}`;
+                            const toStr = `freecell_${emptyFCIndex}`;
+
+                            if (!visitedStateHashes.has(hash) && !isDirectOscillation(cardStr, fromStr, toStr)) {
+                                candidateMoves.push({ prio: 5, sourceCard: topCard, source, target, simState, desc: `Parke ${VALUE_NAMES[topCard.value] || topCard.value}${topCard.suit} in FreeCell, um Ass/2 freizulegen!` });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // LOOKAHEAD: Filtere Züge heraus, die direkt in den nächsten Zug als Sackgasse führen
+            const filteredMoves = candidateMoves.filter(move => {
+                if (move.prio === 1) return true; // Gewinne/Zielstapel-Züge sind nie Sackgassen
+                if (!move.simState) return true;
+
+                const nextMoves = getRawMovesForState(move.simState);
+                return nextMoves.length > 0; // Zug wird verworfen, falls danach 0 Züge möglich sind!
+            });
+
+            return filteredMoves.sort((a, b) => a.prio - b.prio);
+        }
+
+        function getSmartHint() {
+            activeHint = null;
+            const validMoves = getAllValidNonCyclicMoves();
+
+            if (validMoves.length > 0) {
+                const bestMove = validMoves[0];
+                activeHint = { sourceCard: bestMove.sourceCard, target: bestMove.target };
+                document.getElementById('status-text').innerText = `💡 ${bestMove.desc}`;
+                render();
+            } else {
+                document.getElementById('status-text').innerText = "🛑 Keine neuen gewinnbringenden Züge verfügbar!";
+                checkGameOver();
+            }
+        }
+
+        function checkGameOver() {
+            const totalInFoundations = gameState.foundations.reduce((acc, stack) => acc + stack.length, 0);
+            if (totalInFoundations === 52) return;
+
+            const validMoves = getAllValidNonCyclicMoves();
+
+            if (validMoves.length === 0) {
+                setTimeout(() => {
+                    document.getElementById('game-over-modal').classList.add('active');
+                }, 400);
+            }
+        }
+
+        function hideGameOver() {
+            document.getElementById('game-over-modal').classList.remove('active');
+        }
+
+        function checkWin() {
+            const totalInFoundations = gameState.foundations.reduce((acc, stack) => acc + stack.length, 0);
+            if (totalInFoundations === 52) {
+                setTimeout(() => alert("Herzlichen Glückwunsch! Du hast gewonnen! 🎉"), 100);
+            }
+        }
+
+        window.onload = function() {
+            attachSlotClickListeners();
+            initGame();
+        };
+    </script>
+</body>
+</html>
